@@ -5,14 +5,26 @@ from copy import deepcopy
 from flask import jsonify, request
 import flask_restful
 import json
+import collections
 
 app = Flask(__name__)
+
+def GetconnectionInfo():
+    connection={
+        "host": "localhost",
+        "port": "5432",
+        "DbName": "postgres",
+        "user": "postgres",
+        "pass": "a",
+    }
+    return connection
 
 def GetData():
     conn = None
     try:
         data=[]
-        conn = psycopg2.connect(user="postgres", password="a", database="postgres", host="localhost", port="5432")
+        connValue = GetconnectionInfo()
+        conn = psycopg2.connect(user=connValue["user"], password=connValue["pass"], database=connValue["DbName"], host=connValue["host"], port=connValue["port"])
         cur = conn.cursor()
         cur.execute("select name from \"EtiyaDB\".teams t ")
         row = cur.fetchall()
@@ -32,7 +44,8 @@ def DataKaydet():
     data = request.json
     conn = None
     try:
-        conn = psycopg2.connect(user="postgres", password="a", database="postgres", host="localhost", port="5432")
+        connValue = GetconnectionInfo()
+        conn = psycopg2.connect(user=connValue["user"], password=connValue["pass"], database=connValue["DbName"], host=connValue["host"], port=connValue["port"])
         cur = conn.cursor()
 
         for key, value in data["teams"].items():
@@ -46,12 +59,11 @@ def DataKaydet():
     finally:
         if conn is not None:
             conn.close()
-
-    return "veriler kaydedildi."
+    return true
 
 @app.route('/Fikstur')
 def index():
-    sonuc = []
+    sonuc = {}
     butunTakimlar = {}
     takimlar = GetData()
 
@@ -69,6 +81,7 @@ def index():
         for i in range(0, takimsayisi, 2):
             takimliste.append([i, i + 1])
     eslesmeler.append(deepcopy(takimliste))
+
 
     i = 0
     j = 0
@@ -90,25 +103,32 @@ def index():
         takimliste[1][0] = j
         eslesmeler.append(deepcopy(takimliste))
 
-    for hs in range(1, takimsayisi):
-        sonuc.append((str(hs) + ". Hafta"))
-        sonuc.append("----------")
-        for a in range(int(takimsayisi / 2)):
-            sonuc.append(butunTakimlar[eslesmeler[hs - 1][a][0]] + " - " + butunTakimlar[eslesmeler[hs - 1][a][1]])
-        sonuc.append("----------")
+    sonuc = {}
 
-    hs = 0
-    for i in range(takimsayisi, (takimsayisi * 2 - 1)):
-        sonuc.append((str(i) + ". Hafta"))
-        sonuc.append("----------")
-        for a in range(int(takimsayisi / 2)):
-            sonuc.append(butunTakimlar[eslesmeler[hs][a][1]] + " - " + butunTakimlar[eslesmeler[hs][a][0]])
-        sonuc.append("----------")
-        hs += 1
+    for i in range((takimsayisi - 1) * 2):
+        match = {}
+        for j in range(takimsayisi // 2):
+            match["match_"+str(j + 1)] = {}
 
-    return jsonify(sonuc)
+        sonuc["week_" +str(i+1)] = match
 
+    i = 0
+    j = 0
+    for item in eslesmeler:
 
+        i += 1
+        j = 0
+        for item2 in item:
+            j += 1
+            sonuc["week_"+str(i)]["match_"+str(j)] = {'home': takimlar[item2[0]], 'away': takimlar[item2[1]]}
 
+    for item in eslesmeler:
+        i += 1
+        j = 0
+        for item2 in item:
+            j += 1
+            sonuc["week_"+str(i)]["match_"+str(j)] = {'home': takimlar[item2[1]], 'away': takimlar[item2[0]]}
 
+    fikstur={"fixture":sonuc}
 
+    return json.dumps(fikstur)
